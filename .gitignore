@@ -1,0 +1,5 @@
+__pycache__
+venv
+.env
+postgres_data
+table_editor.json

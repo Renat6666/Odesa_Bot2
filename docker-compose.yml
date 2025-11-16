@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  postgres1:
+    image: postgres:15-alpine
+    container_name: postgres1
+    env_file: .env
+    ports:
+      - "0.0.0.0:5488:5488"
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    command: ["postgres", "-c", "listen_addresses=*"]
+    restart: always
+
+  telegram_bot:
+    image: python:3.12-slim
+    container_name: telegram_bot
+    working_dir: /app
+    env_file: .env
+    depends_on:
+      postgres1:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    restart: always
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && alembic upgrade head && python telegram_bot.py"
