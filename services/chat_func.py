@@ -105,7 +105,8 @@ async def req_rieltor_tracker(message: str):
 async def get_api_apartments(data: dict):
     items = data.get("items")
     total_count = data.get("count")
-    messages: List[str] = []
+    apartments = []  # Список квартир з фото та описом окремо
+    
     for it in items[:3]:
         title = it.get("title") or "Об'єкт нерухомості"
         price = it.get("prices", {}).get("value")
@@ -118,58 +119,58 @@ async def get_api_apartments(data: dict):
         condition = it.get("condition")
         desc = (it.get("description") or "").splitlines()
         short = " ".join(desc[:3])[:400]
-        photos = it.get("photos")
+        
+        # Формуємо текстовий опис БЕЗ фото
         parts = [
-            f"{title}",
-            f"Місто: {city or '-'}, Район: {district or '-'}, Вулиця: {street or '-'}",
-            f"Кімнат: {rooms or '-'}, Площа: {area_total or '-'} м², Стан: {condition or '-'}",
-            f"Ціна: ${int(price) if isinstance(price, (int, float)) else price or '-'}",
-            f"Дата оновлення: {it.get('updated_at', '-')}",
+            f"🏠 {title}",
+            f"\n📍 Місто: {city or '-'}, Район: {district or '-'}, Вулиця: {street or '-'}",
+            f"🛏 Кімнат: {rooms or '-'}, Площа: {area_total or '-'} м², Стан: {condition or '-'}",
+            f"💰 Ціна: ${int(price) if isinstance(price, (int, float)) else price or '-'}",
+            f"📅 Дата оновлення: {it.get('updated_at', '-')}",
         ]
         if short:
-            parts.append(short)
+            parts.append(f"\n📝 {short}")
         
-        # Обробка фото (беремо до 3 фото, якщо вони є)
+        text_message = "\n".join(parts)
+        
+        # Обробка фото окремо
+        photo_urls = []
+        photos = it.get("photos")
+        
         if photos and isinstance(photos, list) and len(photos) > 0:
             try:
                 # Якщо photos[0] - рядок JSON, парсимо
                 if isinstance(photos[0], str):
                     photos_data = json.loads(photos[0])
                     if isinstance(photos_data, list) and len(photos_data) > 0:
-                        # Беремо до 3 перших фото
-                        photo_urls = []
-                        for photo in photos_data[:3]:
-                            # Використовуємо 'name' для повного URL або 'url' як запасний варіант
-                            photo_url = photo.get('name') or photo.get('url', '')
+                        # Беремо до 10 перших фото (Telegram ліміт для media group)
+                        for photo in photos_data[:10]:
+                            # Використовуємо 'url' для відносного шляху
+                            photo_url = photo.get('url', '')
                             if photo_url:
-                                photo_urls.append(photo_url)
-                        
-                        if photo_urls:
-                            parts.append(f"\n📷 Фотографії ({len(photo_urls)}):")
-                            for i, url in enumerate(photo_urls, 1):
-                                parts.append(f"{i}. {url}")
+                                # Формуємо повний URL
+                                full_url = f"https://re24.com.ua/{photo_url}"
+                                photo_urls.append(full_url)
                 
                 # Якщо photos[0] - вже список словників
                 elif isinstance(photos[0], dict):
-                    photo_urls = []
-                    for photo in photos[:3]:
-                        photo_url = photo.get('name') or photo.get('url', '')
+                    for photo in photos[:10]:
+                        photo_url = photo.get('url', '')
                         if photo_url:
-                            photo_urls.append(photo_url)
-                    
-                    if photo_urls:
-                        parts.append(f"\n📷 Фотографії ({len(photo_urls)}):")
-                        for i, url in enumerate(photo_urls, 1):
-                            parts.append(f"{i}. {url}")
+                            full_url = f"https://re24.com.ua/{photo_url}"
+                            photo_urls.append(full_url)
             except (json.JSONDecodeError, KeyError, IndexError) as e:
-                # Якщо не вдалося обробити фото - пропускаємо
                 print(f"Could not parse photos: {e}")
-                pass
-        messages.append("\n".join(parts))
+        
+        apartments.append({
+            "text": text_message,
+            "photos": photo_urls  # Список URL фотографій
+        })
+    
     return {
-        "messages": messages,
+        "apartments": apartments,
         "total_count": total_count,
-        }
+    }
     
     
     
@@ -193,7 +194,7 @@ async def process_apartment_search(user_id: int, phone: str):
     # Обробляємо результати
     api_apartments = await get_api_apartments(response)
     return {
-        "messages": api_apartments.get("messages"),
+        "apartments": api_apartments.get("apartments"),
         "total_count": api_apartments.get("total_count"),
     }
 

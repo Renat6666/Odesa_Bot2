@@ -151,10 +151,10 @@ async def handle_contact_message(message: Message):
             )
             return
         
-        messages_list = result.get("messages", [])
+        apartments = result.get("apartments", [])
         total_count = result.get("total_count", 0)
         
-        if not messages_list:
+        if not apartments:
             await message.answer(
                 "На жаль, за вашими параметрами не знайдено квартир. "
                 "Спробуймо розширити критерії пошуку?"
@@ -166,8 +166,22 @@ async def handle_contact_message(message: Message):
             f"Ось найкращі 3 квартири для вас:"
         )
         
-        for idx, apt_message in enumerate(messages_list, 1):
-            await message.answer(f"━━━ Варіант {idx} ━━━\n\n{apt_message}")
+        for idx, apartment in enumerate(apartments, 1):
+            photos = apartment.get("photos", [])
+            text = apartment.get("text", "")
+            
+            # Відправляємо фото, якщо вони є
+            if photos:
+                from aiogram.types import InputMediaPhoto
+                media_group = [InputMediaPhoto(media=url) for url in photos]
+                try:
+                    await message.answer_media_group(media=media_group)
+                    await asyncio.sleep(0.3)
+                except Exception as e:
+                    print(f"Error sending photos: {e}")
+            
+            # Відправляємо опис квартири
+            await message.answer(f"━━━ Варіант {idx} ━━━\n\n{text}")
             await asyncio.sleep(0.5)
         
         # Пропонуємо більше варіантів
@@ -175,12 +189,12 @@ async def handle_contact_message(message: Message):
             remaining = total_count - 3
             await message.answer(
                 f"\n💬 У мене є ще {remaining} варіантів за вашими параметрами!\n\n"
-                f"Якщо хочете побачити більше об'єктів або змінити параметри пошуку - просто напишіть мені."
+                f"Якщо хочете побачити більше об'єктів або змінити параметри пошуку чи звязатись з ріелтором - просто напишіть мені."
             )
         else:
             await message.answer(
                 "\n💬 Це всі доступні варіанти за вашими параметрами.\n\n"
-                "Якщо хочете змінити критерії пошуку або звязатись з ріелтором - просто напишіть мені!"
+                "Якщо хочете змінити критерії пошуку чи звязатись з ріелтором - просто напишіть мені!"
             )
     except Exception as e:
         print(f"Error in handle_contact_message: {e}")
